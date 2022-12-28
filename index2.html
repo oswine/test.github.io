@@ -1,0 +1,292 @@
+﻿<html>
+<head>
+	<title>
+		earthquake
+	</title>
+	<link href="css/style.css?v=2" rel="stylesheet" type="text/css" media="all">
+	<meta charset="utf-8" />
+	<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+
+
+	<style>
+		html,
+		body,
+		#viewDiv {
+			padding: 0;
+			margin: 0;
+			height: 100%;
+			width: 100%;
+		}
+		#timeSlider {
+			position: absolute;
+			left: 5%;
+			right: 5%;
+			bottom: 20px;
+		}
+	</style>
+
+	<link rel="stylesheet" href="https://js.arcgis.com/4.19/esri/themes/light/main.css">
+	<script src="https://js.arcgis.com/4.19/"></script>
+
+	<script>
+		require([
+			"esri/Map",
+			"esri/layers/GeoJSONLayer",
+			"esri/views/MapView",
+			"esri/views/layers/support/FeatureEffect",
+			"esri/widgets/Legend",
+			"esri/layers/FeatureLayer",
+			"esri/smartMapping/renderers/color",
+			"esri/Color",
+			"esri/widgets/TimeSlider",
+			"esri/widgets/Expand",
+
+		], function (Map, GeoJSONLayer, MapView, FeatureEffect,Legend,FeatureLayer,colorRendererCreator,Color,TimeSlider,Expand) {
+			// If GeoJSON files are not on the same domain as your website, a CORS enabled server
+			// or a proxy is required.
+			const url =
+					"https://cxqttkl.github.io/web4gis15/china_simplify.json";
+
+			// Paste the url into a browser's address bar to download and view the attributes
+			// in the GeoJSON file.
+
+
+			const geojsonLayer = new GeoJSONLayer({
+				url: url,
+				blendMode: "source-in"
+			});
+
+			const earthquake = new FeatureLayer({
+				url: "https://sampleserver6.arcgisonline.com/arcgis/rest/services/Earthquakes_Since1970/FeatureServer/0",
+
+			});
+
+
+			const map = new Map({
+				basemap: "gray",
+				layers: [geojsonLayer]
+			});
+
+			const view = new MapView({
+				container: "viewDiv",
+				center: [108, 34],
+				zoom: 5,
+				map: map
+			});
+
+			const timeSlider = new TimeSlider({
+				container: "timeSlider",
+				view: view,
+				timeVisible: true, // show the time stamps on the timeslider
+				loop: true
+			});
+			map.add(earthquake);
+
+			view.whenLayerView(earthquake).then((lv) => {
+				// around up the full time extent to full hour
+				timeSlider.fullTimeExtent =
+						earthquake.timeInfo.fullTimeExtent.expandTo("hours");
+				timeSlider.stops = {
+					interval: earthquake.timeInfo.interval
+				};
+			});
+
+			// view.whenLayerView(geojsonLayer).then(
+			//   function (evt) {
+			//     // const effect = new FeatureEffect({
+			//     //   filter: {
+			//     //     where: "pop2000 >= 50000000"
+			//     //   },
+			//     //   includedEffect: "bloom(150%, 1px, 0.2) saturate(200%)",
+			//     //   excludedEffect: "blur(1px) brightness(65%)"
+			//     // });
+			//     // evt.effect = effect;
+			//
+			//   }
+			// );
+			view.when( function () {
+
+				//第一步，设定符号
+				const less35 = {
+					type: "simple-fill", // autocasts as new SimpleFillSymbol()
+					color: "#fffcd4",
+					style: "solid",
+					outline: {
+						width: 0.2,
+						color: [255, 255, 255, 0.5]
+					}
+				};
+
+				const less50 = {
+					type: "simple-fill", // autocasts as new SimpleFillSymbol()
+					color: "#ff6600",
+					style: "solid",
+					outline: {
+						width: 0.2,
+						color: [255, 255, 255, 0.5]
+					}
+				};
+
+				const more50 = {
+					type: "simple-fill", // autocasts as new SimpleFillSymbol()
+					color: "#ff9900",
+					style: "solid",
+					outline: {
+						width: 0.2,
+						color: [255, 255, 255, 0.5]
+					}
+				};
+
+				const more75 = {
+					type: "simple-fill", // autocasts as new SimpleFillSymbol()
+					color: "#ff3300",
+					style: "solid",
+					outline: {
+						width: 0.2,
+						color: [255, 255, 255, 0.5]
+					}
+				};
+
+				// 第二步，指定渲染器
+				const renderer = {
+					type: "class-breaks", // autocasts as new ClassBreaksRenderer()
+					field: "pop2010", // total number
+					defaultSymbol: {
+						type: "simple-fill", // autocasts as new SimpleFillSymbol()
+						color: "black",
+						style: "backward-diagonal",
+						outline: {
+							width: 0.5,
+							color: [50, 50, 50, 0.6]
+						}
+					},
+					classBreakInfos: [
+						{
+							minValue: 0,
+							maxValue: 5000000,
+							symbol: less35,
+							label: "500万" // label for symbol in legend
+						},
+						{
+							minValue: 5000000,
+							maxValue: 10000000,
+							symbol: less50,
+							label: "1000万" // label for symbol in legend
+						},
+						{
+							minValue: 10000000,
+							maxValue: 50000000,
+							symbol: more50,
+							label: "5000万" // label for symbol in legend
+						},
+						{
+							minValue: 50000000,
+							maxValue: 200000000,
+							symbol: more75,
+							label: "2亿" // label for symbol in legend
+						}
+					],
+					defaultLabel: "no data" // legend label for features that don't match a class break
+				};
+
+
+				geojsonLayer.renderer = renderer;
+				let colorParams = {
+					layer: earthquake,
+					view: view,
+					field: "magnitude",
+					//normalizationField: "TOTPOP_CY",
+					classificationMethod: "natural-breaks",
+					numClasses: 5
+				};
+
+				// when the promise resolves, apply the renderer to the layer
+				colorRendererCreator.createClassBreaksRenderer(colorParams)
+						.then(function(response){
+							earthquake.renderer = response.renderer;
+						});
+
+				const legend = new Legend({
+					view: view
+				});
+				const legendExpand = new Expand({
+					expandIconClass: "esri-icon-legend",
+					expandTooltip: "Legend",
+					view: view,
+					content: legend,
+					expanded: false
+				});
+				view.ui.add(legendExpand, "top-left");
+
+				view.on("click",function(evt){
+
+					var query = earthquake.createQuery();
+
+					query.returnGeometry = true;
+					query.outFields = ["*"];
+
+					query.geometry = evt.mapPoint; //view.toMap(evt);  // the point location of the pointer
+					query.distance = 20;
+					query.units = "kilometers";
+					query.spatialRelationship = "intersects";  // this is the default
+
+					earthquake.queryFeatures(query).then(function(results){
+
+
+						if(results.features.length>0){
+							//一种更稳健的方法。用forEach遍历返回的结果。
+							results.features.forEach(function(item){
+								alert( "震级："+item.attributes["magnitude"]+"\n发生时间："+item.attributes["year_"]+"年"+"" +
+										"\n"+"持续时间："+item.attributes["mn"]+"分"+item.attributes["sec"]+"秒\n"+"地点:"+item.attributes["name"]
+										+"\n死亡人数："+item.attributes["num_deaths"]+"\n受伤人数："+item.attributes["num_injured"]);
+							});
+						}
+						else{
+							alert("未返回查询结果！");
+						}
+
+
+
+
+					});
+
+
+				});
+
+
+			});
+
+		});
+	</script>
+</head>
+<body>
+	<header>
+		<div class="caption">
+			<strong>中国地震</strong>
+		</div>
+		<nav>
+			<ul>
+				<li>
+					<a href="index.html">首页</a>
+				</li>
+				<li>
+					<a href="index2.html">历史地震地图</a>
+				</li>
+				<li>
+					<a href="index3.html">新闻</a>
+				</li>
+
+			</ul>	
+		</nav>
+	</header>
+	<section>
+
+	</section>
+	<div></div>
+
+	<div id="viewDiv"></div>
+	<div id="timeSlider"></div>
+
+
+</body>
+</html>
